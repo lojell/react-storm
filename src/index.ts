@@ -1,0 +1,1 @@
+export { default as createModel } from './storm';
