@@ -1,4 +1,4 @@
-export function proxyMethodCalls(obj: Record<string, unknown>, postAction: () => void) {
+export function proxyMethodCalls(obj: any, postAction: () => void) {
   for (const propKey of Object.getOwnPropertyNames(Object.getPrototypeOf(obj))) {
     const originalMethod = obj[propKey];
     if (typeof originalMethod == 'function' && !(propKey as string).startsWith('_') && propKey !== 'constructor') {

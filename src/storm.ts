@@ -1,57 +1,73 @@
 import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector';
-import { proxyMethodCalls } from './proxy';
-import { activate } from './utils';
+import globalStore, { storeSelector } from './store';
+import { compareObjects } from './utils';
+import { actionFilter as actionFilterFn, ActionFilterSelector, actionWrapper as actionWrapperFn, ActionWrapperSelector } from './decorators';
+import { RemoveMethods, StormConnection } from './types';
 
-const registry = {};
+const cloneDeep = require('lodash.clonedeep');
 
-function createModel<TModel>(TCreator: { new(): TModel; }) {
-  // @ts-ignores
-  let model = (registry[TCreator.name] = registry[TCreator.name] || activate(TCreator));
-  const modelChangeSubscribers = new Set();
 
-  const updateModel = () => {
-    // @ts-ignore
-    modelChangeSubscribers.forEach(onModelChange => onModelChange());
-  }
-
-  const getSubscribed = (onModelChange: () => void) => {
-    modelChangeSubscribers.add(onModelChange);
-    return () => modelChangeSubscribers.delete(onModelChange);
-  }
-
-  model = proxyMethodCalls(model, () => updateModel());
-
-  const compareFn = (a: Partial<TModel>, b: Partial<TModel>) => {
-    // TODO: very rough, needs to be rewritten in a better way
-    return JSON.stringify(a) === JSON.stringify(b)
-  }
+function createStoreModel<TModel>(TCreator: { new(): TModel; }, initialValue?: Partial<RemoveMethods<TModel>>, key?: any): StormConnection<TModel> {
+  const model = activateStoreModel(TCreator, initialValue, key);
 
   type Selector<TSelect> = (state: TModel) => TSelect;
 
-  function connectToStore(): TModel;
+  function connectToStore(): TModel
   function connectToStore<TSelect>(selector: Selector<TSelect>): TSelect
-  function connectToStore<TSelect>(selector?: Selector<TSelect>): any {
+  function connectToStore<TSelect>(selector?: Selector<TSelect>, key?: any): any {
 
-    const selectorSpecified = typeof selector === 'function';
-    const getSnapshot = selectorSpecified
-      ? () => ({ ...selector(model) })
-      : () => ({ ...model });
+    return useStoreModel(TCreator, selector, key)
+  };
 
-    const selectorCallback = selectorSpecified
-      ? selector
-      : () => model;
+  // Tools
 
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useSyncExternalStoreWithSelector<TModel, TSelect>(
-      getSubscribed,
-      getSnapshot,
-      null, // TODO: create implementation for next.js and etc.
-      selectorCallback,
-      compareFn
-    );
+  function modelSelector<TSelect>(selector: (model: TModel) => TSelect): TSelect {
+    return storeSelector(TCreator, selector);
   }
 
-  return connectToStore;
+  function actionFilter(selector: ActionFilterSelector<TModel>) {
+    return actionFilterFn(TCreator, selector);
+  }
+
+  function actionWrapper(preAction: ActionWrapperSelector<TModel>, postAction: ActionWrapperSelector<TModel>) {
+    return actionWrapperFn(model, preAction, postAction);
+  }
+  
+  return [
+    connectToStore,
+    {
+      modelSelector,
+      decorators: {
+        actionFilter,
+        actionWrapper
+      }
+    }
+  ];
 }
 
-export default createModel;
+export const activateStoreModel = <TModel>(TCreator: { new(): TModel; }, initialValue?: Partial<RemoveMethods<TModel>>, key?: any): TModel => {
+  const registryModel = globalStore.activateModel(TCreator, initialValue, key);
+  return registryModel.model;
+}
+
+export const useStoreModel = <TModel, TSelect>(TCreator: { new(): TModel; }, selector?: (state: TModel) => TSelect, key?: any): TSelect => {
+
+  const registryModel = globalStore.get(TCreator, key);
+  const selectorSpecified = typeof selector === 'function';
+
+  const getSnapshot = selectorSpecified
+    ? () => cloneDeep(selector(registryModel.model)) as TSelect
+    : () => cloneDeep(registryModel.model) as TSelect;
+
+  
+  return useSyncExternalStoreWithSelector<TModel, TSelect>(
+    (onModelChange) => registryModel.getSubscribed(onModelChange),
+    // @ts-ignore
+    getSnapshot,
+    null, // TODO: create implementation for next.js and etc.
+    getSnapshot,
+    compareObjects
+  );
+};
+
+export default createStoreModel;
