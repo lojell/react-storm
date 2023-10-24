@@ -1,6 +1,6 @@
 {
   "name": "react-storm",
-  "version": "0.1.1",
+  "version": "0.5.0",
   "description": "A small storm in the React Store world",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
