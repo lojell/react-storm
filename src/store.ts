@@ -1,18 +1,24 @@
-import { proxyMethodCalls } from "./proxy";
-import { RemoveMethods } from "./types";
-import { activate } from "./utils";
+import { ModelMeta } from "./meta";
+import { Models } from "./models";
+import { ModelScope } from "./context";
 
-class RegistryModel<T> {
+export class StoreModel<TModel> {
+
   private subscribers: Set<() => void>;
 
-  public model: T;
+  public model: TModel;
+  public key?: any;
 
-  constructor(model: T) {
+  public context: ModelScope;
+
+  constructor(public readonly meta: ModelMeta<TModel>, context: ModelScope, key?: any) {
     this.subscribers = new Set<() => void>();
-    this.model = proxyMethodCalls(model, () => this.updateModel());
+    this.key = key;
+    this.model = new meta.proxy_ctor(this, key)
+    this.context = context.push(this);
   }
 
-  public updateModel() {
+  public emitModelChange() {
     this.subscribers.forEach(onModelChange => onModelChange());
   }
 
@@ -23,53 +29,67 @@ class RegistryModel<T> {
 }
 
 class Store {
+  private registry = new Map<string, StoreModel<any>>()
+  private activatedCounter = new Map<string, number>()
 
-  private registry = new Map<string, RegistryModel<any>>()
+  public activateModel<TModel>(TCreator: { new(): TModel; }, context: ModelScope, key?: any): StoreModel<TModel> {
+    const meta = Models.getModelMetadata(TCreator);
+    const modelKey = meta.key(key)
 
-  public activateModel<TModel>(TCreator: { new(): TModel; }, initialValue?: Partial<RemoveMethods<TModel>>, key?: any): RegistryModel<TModel> {
-    // @ts-ignore
-    const modelKey = key ? `${TCreator.name}_${key}` : TCreator.name;
+    this.activatedCounter.set(modelKey, (this.activatedCounter.get(modelKey) || 0) + 1)
 
-    if (this.registry.has(modelKey))
-      throw new Error(`Model ${modelKey} is already activated`);
-
-    const model = activate(TCreator);
-
-    if (initialValue) {
-      for (const key in initialValue) {
-        if (Object.prototype.hasOwnProperty.call(model, key)) {
-          // @ts-ignore
-          model[key] = initialValue[key];
-        }
-      }
+    if (this.registry.has(modelKey)) {
+      return this.registry.get(modelKey) as StoreModel<TModel>
     }
 
-    const registryModel = new RegistryModel(model)
+    const storeModel = new StoreModel<TModel>(meta, context, key)
 
-    this.registry.set(modelKey, registryModel);
+    this.registry.set(meta.key(key), storeModel);
 
-    return registryModel;
+    console.log('activateModel', storeModel)
+    return storeModel;
   }
 
-  public get<TModel>(TCreator: { new(): TModel; }, key?: any): RegistryModel<TModel> {
-    // @ts-ignore
-    const modelKey = key ? `${TCreator.name}_${key}` : TCreator.name;
+  public deactivateModel<TModel>(TCreator: { new(): TModel; }, key?: any) {
+    const meta = Models.getModelMetadata(TCreator);
+    const modelKey = meta.key(key);
+    const count = (this.activatedCounter.get(modelKey) || 0) - 1
+    this.activatedCounter.set(modelKey, count)
+
+    if (count < 0) {
+      throw new Error('Negative amount of activated Models, seems that activate Model called outside of connect method')
+    }
+
+    if (count === 0) {
+      this.registry.delete(meta.key(key));
+      console.log('deactivateModel', meta)
+    }
+  }
+
+  public get<TModel>(TCreator: { new(): TModel; }, key?: any): StoreModel<TModel> {
+    const meta = Models.getModelMetadata(TCreator);
+    const modelKey = meta.key(key)
 
     if (!this.registry.has(modelKey))
       throw new Error(`Model ${modelKey} is not created`);
 
-    return this.registry.get(modelKey) as RegistryModel<TModel>;
+    return this.registry.get(modelKey) as StoreModel<TModel>;
   }
 }
 
 const globalStore = new Store();
-
 // @ts-ignore
 window.globalStore = globalStore;
 
-export function storeSelector<TModel, TSelect>(TCreator: { new(): TModel; }, selector: (model: TModel) => TSelect, key?: any): TSelect {
-  const registryModel = globalStore.get(TCreator, key);
-  return selector(registryModel.model);
+
+export const store = <TModel>(TCreator: { new(): TModel; }): TModel => {
+  const depMeta = Models.getModelMetadata(TCreator);
+  const resolved = globalStore['registry'].get(depMeta.key());
+  if (!resolved) {
+    throw new Error(`Dependency '${depMeta.name}' not found`);
+  }
+
+  return resolved.model;
 }
 
 export default globalStore;

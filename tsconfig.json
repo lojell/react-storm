@@ -21,14 +21,11 @@
     "jsx": "react-jsx",
 
     "declaration": true,
-    "declarationDir": "types",
-    "emitDeclarationOnly": true,
-
-    "outDir": "dist",
+    "outDir": "./dist",
     "sourceMap": true
   },
   "include": [
-    "src"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",

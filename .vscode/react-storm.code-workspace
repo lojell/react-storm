@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"name": "react-storm",
+			"path": ".."
+		},
+		{
+			"name": "sample-app",
+			"path": "../examples/sample-app"
+		},
+	],
+	"launch": {
+		"version": "0.2.0",
+		"compounds": [
+			{
+				"name": "Run sample app",
+				"configurations": [
+					"sample-app",
+				]
+			}
+		]
+	},
+}
