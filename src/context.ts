@@ -1,10 +1,14 @@
 import React from "react";
 import { StoreModel } from "./store";
+import { ModelCreator } from "./types";
 
 export class ModelScope {
-  public childs: ModelScope[] = []
+  public childs: ModelScope[] = [];
 
-  constructor(public readonly parent?: ModelScope, public readonly model?: StoreModel<any>) {
+  constructor(
+    public readonly parent?: ModelScope,
+    public readonly model?: StoreModel<any>
+  ) {
     if (parent != null) {
       parent.childs.push(this);
     }
@@ -14,7 +18,7 @@ export class ModelScope {
     return new ModelScope(this, storeModel)
   }
 
-  public find<TModel>(TCreator: new (...args: any[]) => TModel): StoreModel<TModel> | null {
+  public find<TModel>(TCreator: ModelCreator<TModel>): StoreModel<TModel> | null {
     if (!this.model && !this.parent)
       return null
     else if (this.model?.meta.model_ctor === TCreator)

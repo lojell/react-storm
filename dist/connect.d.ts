@@ -1,4 +1,3 @@
-import { RemoveMethods, StormConnection } from "./types";
-export declare function connect<TModel>(TCreator: {
-    new (...args: any[]): TModel;
-}, initialValue?: Partial<RemoveMethods<TModel>>): StormConnection<TModel>;
+import React from "react";
+import { ModelCreator, StormConnection } from "./types";
+export declare function connect<TModel>(TCreator: ModelCreator<TModel>, rootNode?: React.ComponentType<any>): StormConnection<TModel>;

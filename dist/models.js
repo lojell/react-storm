@@ -1,26 +1,29 @@
 import { ModelMeta } from "./meta";
+import { shorid } from "./utils";
 var Models = /** @class */ (function () {
     function Models() {
     }
     Models.defineModel = function (target, dependencies) {
         var meta = Models.resolveMeta(target);
-        meta.id = (Math.random() + 1).toString(36).substring(7);
+        meta.id = shorid();
         meta.name = target.name;
         meta.dependencies = dependencies;
         meta.model_ctor = target;
         meta.proxy_ctor = /** @class */ (function () {
             function class_1(store, key) {
                 var _this = this;
-                var model = new meta.model_ctor(key);
-                var _loop_1 = function (propKey) {
-                    var _b;
+                var model = new meta.model_ctor();
+                var _loop_1 = function (propKey, propDesc) {
+                    var _c, _d;
                     if (propKey === 'constructor')
                         return "continue";
                     var originalMethod = model[propKey];
-                    if (meta.actions.includes(propKey)) {
+                    if (meta.actions.includes(propKey)
+                        || (propDesc.value != null && model.init === propDesc.value)
+                        || (propDesc.value != null && model.update === propDesc.value)) {
                         // TODO
-                        Object.assign(this_1, (_b = {},
-                            _b[propKey] = function () {
+                        Object.assign(this_1, (_c = {},
+                            _c[propKey] = function () {
                                 var args = [];
                                 for (var _i = 0; _i < arguments.length; _i++) {
                                     args[_i] = arguments[_i];
@@ -32,15 +35,25 @@ var Models = /** @class */ (function () {
                                     return val;
                                 });
                             },
-                            _b));
+                            _c));
+                    }
+                    else if (propDesc.get || propDesc.set) {
+                        Object.defineProperty(this_1, propKey, propDesc);
                     }
                     else {
+                        Object.assign(this_1, (_d = {}, _d[propKey] = function () {
+                            var args = [];
+                            for (var _i = 0; _i < arguments.length; _i++) {
+                                args[_i] = arguments[_i];
+                            }
+                            return originalMethod.apply(_this, args);
+                        }, _d));
                     }
                 };
                 var this_1 = this;
-                for (var _i = 0, _a = Object.getOwnPropertyNames(Object.getPrototypeOf(model)); _i < _a.length; _i++) {
-                    var propKey = _a[_i];
-                    _loop_1(propKey);
+                for (var _i = 0, _a = Object.entries(Object.getOwnPropertyDescriptors(Object.getPrototypeOf(model))); _i < _a.length; _i++) {
+                    var _b = _a[_i], propKey = _b[0], propDesc = _b[1];
+                    _loop_1(propKey, propDesc);
                 }
                 Object.entries(model).forEach(function (_a) {
                     var entry = _a[0], value = _a[1];
@@ -59,7 +72,7 @@ var Models = /** @class */ (function () {
         var meta = Models.resolveMeta(target.constructor);
         meta.actions.push(propertyKey);
     };
-    Models.getModelMetadata = function (TCreator) {
+    Models.getMeta = function (TCreator) {
         var meta = Models._modelsCache.get(TCreator);
         if (!meta)
             throw new Error("Model ".concat(TCreator.name, " is not React-Storm Model. Class should be decorated by @Model decorator"));
@@ -82,7 +95,6 @@ export { Models };
 //
 export function Model() {
     return function (target) {
-        // const dependencies = Reflect.getMetadata("design:paramtypes", target) || [];
         Models.defineModel(target, []);
     };
 }

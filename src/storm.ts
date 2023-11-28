@@ -2,17 +2,21 @@
 import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector';
 import globalStore, { StoreModel } from './store';
 import { compareObjects } from './utils';
+import { ModelCreator } from './types';
 
 const cloneDeep = require('lodash.clonedeep');
 
-export const useModel_Internal = <TModel, TSelect extends Object>(storeModel: StoreModel<TModel>, selector?: (state: TModel) => TSelect, key?: any): TSelect => {
+export const useModel_Internal = <TModel, TSelect extends Object>(storeModel: StoreModel<TModel>, selector?: (state: TModel) => TSelect): TSelect => {
   const selectorSpecified = typeof selector === 'function';
 
-  const getSnapshot = () => cloneDeep(storeModel.model) as TModel
-  const getSelected = (model: any) => selectorSpecified ? selector(model) : model
+  const getSnapshot = () => [storeModel.model]; // TODO: emulating new ref
+  const getSelected = ([model]: any) => {
+    return cloneDeep(selectorSpecified ? selector(model) : model)
+  }
 
   return useSyncExternalStoreWithSelector<TModel, TSelect>(
     (onModelChange) => storeModel.getSubscribed(onModelChange),
+    // @ts-ignore
     getSnapshot,
     null, // TODO: create implementation for next.js and etc.
     getSelected,
@@ -20,7 +24,7 @@ export const useModel_Internal = <TModel, TSelect extends Object>(storeModel: St
   );
 };
 
-export const useModel = <TModel, TSelect extends Object>(TCreator: { new(...args: any[]): TModel; }, selector?: (state: TModel) => TSelect, key?: any): TSelect => {
-  const storeModel = globalStore.get(TCreator, key);
-  return useModel_Internal(storeModel, selector, key);
+export const useModel = <TModel, TSelect extends Object>(TCreator: ModelCreator<TModel>, selector?: (state: TModel) => TSelect): TSelect => {
+  const storeModel = globalStore.get(TCreator);
+  return useModel_Internal(storeModel, selector);
 };

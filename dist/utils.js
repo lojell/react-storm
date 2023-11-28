@@ -1,4 +1,5 @@
-function decycle(obj, stack) {
+import { useCallback, useRef } from "react";
+export function decycle(obj, stack) {
     if (stack === void 0) { stack = []; }
     if (!obj || typeof obj !== 'object')
         return obj;
@@ -15,7 +16,23 @@ function decycle(obj, stack) {
 }
 export function compareObjects(a, b) {
     // TODO: very rough, needs to be rewritten in a better way
-    // return JSON.stringify(a) === JSON.stringify(b)
     return JSON.stringify(decycle(a)) === JSON.stringify(decycle(b));
+}
+export function promsify(fn) {
+    var res = fn();
+    return res instanceof Promise ? res : Promise.resolve(res);
+}
+export function shorid() {
+    return (Math.random() + 1).toString(36).substring(7);
+}
+export function useLock() {
+    var lockRef = useRef(false);
+    var oneTimeCall = useCallback(function (handler) {
+        if (lockRef.current === false) {
+            lockRef.current = true;
+            handler();
+        }
+    }, []);
+    return oneTimeCall;
 }
 //# sourceMappingURL=utils.js.map

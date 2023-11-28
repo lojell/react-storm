@@ -4,7 +4,7 @@ export declare class Models {
     static defineModel(target: any, dependencies: any[]): void;
     static defineField(target: any, propertyKey: string): void;
     static defineAction(target: any, propertyKey: string): void;
-    static getModelMetadata<TModel>(TCreator: {
+    static getMeta<TModel>(TCreator: {
         new (...args: any[]): TModel;
     }): ModelMeta<TModel>;
     private static resolveMeta;

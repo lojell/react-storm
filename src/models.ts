@@ -1,26 +1,30 @@
 import { ModelMeta } from "./meta";
 import { StoreModel } from "./store";
+import { ModelWithInit, ModelWithUpdate } from "./types";
+import { shorid } from "./utils";
 
 export class Models {
   private static _modelsCache = new Map<any, ModelMeta<any>>();
 
   public static defineModel(target: any, dependencies: any[]) {
     const meta = Models.resolveMeta(target);
-    meta.id = (Math.random() + 1).toString(36).substring(7);
+    meta.id = shorid();
     meta.name = target.name;
     meta.dependencies = dependencies;
     meta.model_ctor = target;
     meta.proxy_ctor = class {
       constructor(store: StoreModel<any>, key?: any) {
-        const model = new meta.model_ctor(key);
+        const model = new meta.model_ctor();
 
-        for (const propKey of Object.getOwnPropertyNames(Object.getPrototypeOf(model))) {
+        for (const [propKey, propDesc] of Object.entries(Object.getOwnPropertyDescriptors(Object.getPrototypeOf(model)))) {
           if (propKey === 'constructor')
             continue;
 
           const originalMethod = model[propKey];
 
-          if (meta.actions.includes(propKey)) {
+          if (meta.actions.includes(propKey)
+            || (propDesc.value != null && (model as ModelWithInit).init === propDesc.value)
+            || (propDesc.value != null && (model as ModelWithUpdate).update === propDesc.value)) {
             // TODO
             Object.assign(this, {
               [propKey]: (...args: IArguments[]) => {
@@ -32,8 +36,10 @@ export class Models {
                 });
               }
             })
+          } else if (propDesc.get || propDesc.set) {
+            Object.defineProperty(this, propKey, propDesc)
           } else {
-
+            Object.assign(this, { [propKey]: (...args: IArguments[]) => originalMethod.apply(this, args) })
           }
         }
 
@@ -55,7 +61,7 @@ export class Models {
     meta.actions.push(propertyKey)
   }
 
-  public static getModelMetadata<TModel>(TCreator: { new(...args: any[]): TModel; }): ModelMeta<TModel> {
+  public static getMeta<TModel>(TCreator: { new(...args: any[]): TModel; }): ModelMeta<TModel> {
     const meta = Models._modelsCache.get(TCreator);
     if (!meta)
       throw new Error(`Model ${TCreator.name} is not React-Storm Model. Class should be decorated by @Model decorator`);
@@ -78,7 +84,6 @@ export class Models {
 //
 export function Model() {
   return function <T extends Object>(target: T) {
-    // const dependencies = Reflect.getMetadata("design:paramtypes", target) || [];
     Models.defineModel(target, [])
   };
 }
@@ -96,6 +101,4 @@ export function Action() {
     Models.defineAction(target, propertyKey)
   };
 }
-
-
 
